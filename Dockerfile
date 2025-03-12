@@ -1,6 +1,6 @@
-FROM alpine:3.17
+FROM alpine:3.21
 
-MAINTAINER Eric Daras <eric@daras.family>
+LABEL Maitainer: Eric Daras <eric@daras.family>
 
 RUN apk --no-cache add bash tinyproxy curl ruby
 
