@@ -22,11 +22,12 @@ variables:
 build-and-push:
   stage: build
   image:
-    name: moby/buildkit:latest
+    name: moby/buildkit:rootless
     entrypoint: [""]
   variables:
     DOCKER_CONFIG: "$CI_PROJECT_DIR/.docker"
     BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+    FF_DISABLE_UMASK_FOR_DOCKER_EXECUTOR: "true"
   before_script:
     # Install git (not present in the buildkit image)
     - apk add --no-cache git
