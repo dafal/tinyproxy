@@ -10,14 +10,40 @@
 #
 # The pipeline clones the source from GitHub, builds the image rootlessly
 # using BuildKit, and pushes to Docker Hub only when there are new commits.
+#
+# Two-stage approach: clone in alpine (normal image), build in buildkit:rootless.
+# This avoids running apk inside the buildkit container which has no write
+# access to /var/log as a non-root user.
 
 stages:
+  - clone
   - build
 
 variables:
   GITHUB_REPO: "https://github.com/dafal/tinyproxy.git"
   IMAGE_NAME: "dafal/tinyproxy"
   GIT_STRATEGY: none  # We clone manually from GitHub, not from GitLab
+
+# Clone the GitHub repo and expose the source + commit SHA as artifacts.
+# Also aborts early (allow_failure: false) if nothing changed since last build.
+clone-source:
+  stage: clone
+  image: alpine/git:latest
+  script:
+    - git clone "$GITHUB_REPO" repo
+    - CURRENT_SHA=$(git -C repo rev-parse HEAD)
+    - echo "GitHub HEAD is $CURRENT_SHA"
+    - |
+      if [ -n "$LAST_BUILT_SHA" ] && [ "$LAST_BUILT_SHA" = "$CURRENT_SHA" ]; then
+        echo "No new commits since last build ($LAST_BUILT_SHA). Skipping."
+        exit 0
+      fi
+    - git -C repo rev-parse HEAD > repo/.git-sha
+    - git -C repo rev-parse --short HEAD > repo/.git-short-sha
+  artifacts:
+    paths:
+      - repo/
+    expire_in: 1 hour
 
 build-and-push:
   stage: build
@@ -27,32 +53,14 @@ build-and-push:
   variables:
     DOCKER_CONFIG: "$CI_PROJECT_DIR/.docker"
     BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
-    FF_DISABLE_UMASK_FOR_DOCKER_EXECUTOR: "true"
   before_script:
-    # Install git (not present in the buildkit image)
-    - apk add --no-cache git
-
-    # Clone from GitHub
-    - git clone "$GITHUB_REPO" repo
-
-    # Skip build if nothing has changed since last run
-    - CURRENT_SHA=$(git -C repo rev-parse HEAD)
-    - echo "GitHub HEAD is $CURRENT_SHA"
-    - |
-      if [ -n "$LAST_BUILT_SHA" ] && [ "$LAST_BUILT_SHA" = "$CURRENT_SHA" ]; then
-        echo "No new commits since last build ($LAST_BUILT_SHA). Skipping."
-        exit 0
-      fi
-
-    # Configure Docker Hub authentication for BuildKit
     - mkdir -p "$DOCKER_CONFIG"
     - |
       cat > "$DOCKER_CONFIG/config.json" <<EOF
       {"auths":{"https://index.docker.io/v1/":{"username":"$DOCKER_HUB_USER","password":"$DOCKER_HUB_TOKEN"}}}
       EOF
-
   script:
-    - SHORT_SHA=$(git -C repo rev-parse --short HEAD)
+    - SHORT_SHA=$(cat repo/.git-short-sha)
     - echo "Building $IMAGE_NAME:$SHORT_SHA ..."
     - |
       buildctl-daemonless.sh build \
