@@ -5,8 +5,11 @@
 #   DOCKER_HUB_USER   : your Docker Hub username
 #   DOCKER_HUB_TOKEN  : your Docker Hub access token (masked)
 #
-# The pipeline clones the source from GitHub, builds the image,
-# and pushes to Docker Hub only when there are new commits.
+# Optional CI/CD variable (set after first successful build to skip unchanged commits):
+#   LAST_BUILT_SHA    : SHA of the last successfully built GitHub commit
+#
+# The pipeline clones the source from GitHub, builds the image rootlessly
+# using BuildKit, and pushes to Docker Hub only when there are new commits.
 
 stages:
   - build
@@ -18,39 +21,44 @@ variables:
 
 build-and-push:
   stage: build
-  image: docker:27
-  services:
-    - docker:27-dind
+  image:
+    name: moby/buildkit:rootless
+    entrypoint: [""]
   variables:
-    DOCKER_TLS_CERTDIR: "/certs"
-  script:
-    # Clone from GitHub
+    DOCKER_CONFIG: "$CI_PROJECT_DIR/.docker"
+    BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+  before_script:
+    # Install git (not present in the buildkit image)
     - apk add --no-cache git
+
+    # Clone from GitHub
     - git clone "$GITHUB_REPO" repo
-    - cd repo
 
-    # Determine the current HEAD commit
-    - CURRENT_SHA=$(git rev-parse HEAD)
-    - echo "Current GitHub HEAD is $CURRENT_SHA"
-
-    # Fetch the last built SHA stored as a CI variable (LAST_BUILT_SHA).
-    # On first run, or if the variable is not set, always build.
+    # Skip build if nothing has changed since last run
+    - CURRENT_SHA=$(git -C repo rev-parse HEAD)
+    - echo "GitHub HEAD is $CURRENT_SHA"
     - |
       if [ -n "$LAST_BUILT_SHA" ] && [ "$LAST_BUILT_SHA" = "$CURRENT_SHA" ]; then
         echo "No new commits since last build ($LAST_BUILT_SHA). Skipping."
         exit 0
       fi
 
-    # Build image — tag with latest and the short commit SHA
-    - SHORT_SHA=$(echo "$CURRENT_SHA" | cut -c1-8)
-    - echo "Building image for commit $SHORT_SHA ..."
-    - docker build -t "$IMAGE_NAME:latest" -t "$IMAGE_NAME:$SHORT_SHA" .
+    # Configure Docker Hub authentication for BuildKit
+    - mkdir -p "$DOCKER_CONFIG"
+    - |
+      cat > "$DOCKER_CONFIG/config.json" <<EOF
+      {"auths":{"https://index.docker.io/v1/":{"username":"$DOCKER_HUB_USER","password":"$DOCKER_HUB_TOKEN"}}}
+      EOF
 
-    # Push to Docker Hub
-    - echo "$DOCKER_HUB_TOKEN" | docker login -u "$DOCKER_HUB_USER" --password-stdin
-    - docker push "$IMAGE_NAME:latest"
-    - docker push "$IMAGE_NAME:$SHORT_SHA"
-    - echo "Pushed $IMAGE_NAME:latest and $IMAGE_NAME:$SHORT_SHA"
-
-  after_script:
-    - docker logout || true
+  script:
+    - SHORT_SHA=$(git -C repo rev-parse --short HEAD)
+    - echo "Building $IMAGE_NAME:$SHORT_SHA ..."
+    - |
+      buildctl-daemonless.sh build \
+        --frontend dockerfile.v0 \
+        --local context=repo \
+        --local dockerfile=repo \
+        --opt filename=Dockerfile \
+        --import-cache type=registry,ref=$IMAGE_NAME:buildcache \
+        --export-cache type=registry,ref=$IMAGE_NAME:buildcache,mode=max \
+        --output type=image,"name=$IMAGE_NAME:latest,$IMAGE_NAME:$SHORT_SHA",push=true
