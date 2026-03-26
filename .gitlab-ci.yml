@@ -28,8 +28,9 @@ variables:
 # Also aborts early (allow_failure: false) if nothing changed since last build.
 clone-source:
   stage: clone
-  image: alpine/git:latest
+  image: alpine:latest
   script:
+    - apk add --no-cache git
     - git clone "$GITHUB_REPO" repo
     - CURRENT_SHA=$(git -C repo rev-parse HEAD)
     - echo "GitHub HEAD is $CURRENT_SHA"
