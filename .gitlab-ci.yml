@@ -71,4 +71,5 @@ build-and-push:
         --opt filename=Dockerfile \
         --import-cache type=registry,ref=$IMAGE_NAME:buildcache \
         --export-cache type=registry,ref=$IMAGE_NAME:buildcache,mode=max \
-        --output type=image,"name=$IMAGE_NAME:latest,$IMAGE_NAME:$SHORT_SHA",push=true
+        --output type=image,name=$IMAGE_NAME:latest,push=true \
+        --output type=image,name=$IMAGE_NAME:$SHORT_SHA,push=true
