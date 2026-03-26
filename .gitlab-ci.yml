@@ -22,7 +22,7 @@ variables:
 build-and-push:
   stage: build
   image:
-    name: moby/buildkit:rootless
+    name: moby/buildkit:latest
     entrypoint: [""]
   variables:
     DOCKER_CONFIG: "$CI_PROJECT_DIR/.docker"
