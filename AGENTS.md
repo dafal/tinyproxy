@@ -1,55 +1,33 @@
-# Agent Guidelines for Tinyproxy Repository
-
-## Overview
-This repository contains a simple Ruby script (`tinyproxycmd.rb`) that generates configuration files for Tinyproxy and starts the Tinyproxy service. The project also includes a Dockerfile for containerization.
-
+# AGENTS.md
+## Repository Overview
+- This repo is a very small Ruby project centered on `tinyproxycmd.rb`.
+- `tinyproxycmd.rb` parses CLI flags, writes Tinyproxy config files, prints the generated config, and starts `tinyproxy`.
+- `Dockerfile` packages the script into an Alpine image.
+- There is no `lib/`, `test/`, `spec/`, Gemfile, or CI workflow in the repo today.
+- Ruby dependencies are stdlib only: `optparse`, `ostruct`, and `socket`.
+## Files That Matter
+- `tinyproxycmd.rb`: main executable and the primary place for logic changes.
+- `Dockerfile`: container build and runtime behavior.
+- `README.md`: usage examples and supported CLI options.
+- `AGENTS.md`: instructions for coding agents operating in this repository.
+## Agent Priorities
+- Preserve the repo's simplicity; prefer small, direct changes over framework-heavy rewrites.
+- Keep behavior obvious from reading the script.
+- Favor the current single-file layout unless the task clearly benefits from refactoring.
+- When changing CLI behavior, update `README.md` and `tinyproxycmd.rb --help` text together.
+- Avoid introducing non-stdlib Ruby dependencies unless the user explicitly asks for them.
+## Cursor And Copilot Rules
+- No `.cursor/rules/` directory was found.
+- No `.cursorrules` file was found.
+- No `.github/copilot-instructions.md` file was found.
+- If any of those files are added later, treat them as higher-priority instructions and merge their guidance into future edits.
 ## Build Commands
-
-### Docker Image
-To build the Docker image:
-```bash
-docker build -t dafal/tinyproxy .
-```
-
-### Ruby Dependencies
-This project uses only Ruby standard libraries, so no external dependencies need to be installed.
-
-## Lint Commands
-
-### Ruby Code Style
-Since there's no existing linting setup, we recommend using RuboCop with the following configuration:
-
-1. Install RuboCop:
-```bash
-gem install rubocop
-```
-
-2. Run RuboCop:
-```bash
-rubocop tinyproxycmd.rb
-```
-
-3. For auto-correction:
-```bash
-rubocop -A tinyproxycmd.rb
-```
-
-## Test Commands
-
-### Manual Testing
-There are no automated tests in this repository. To test the script:
-
-1. Help command:
+### Local Ruby Execution
+- Show CLI help:
 ```bash
 ruby tinyproxycmd.rb --help
 ```
-
-2. Basic execution (requires root privileges for writing to /etc/tinyproxy/):
-```bash
-sudo ruby tinyproxycmd.rb --allow 192.168.0.0/16 --filter_default_deny --filter google\.com$,yahoo\.com$
-```
-
-3. Testing with custom directories (recommended for testing):
+- Run with temp output paths so you do not write into `/etc/tinyproxy/`:
 ```bash
 mkdir -p /tmp/tinyproxy_test
 ruby tinyproxycmd.rb \
@@ -64,137 +42,121 @@ ruby tinyproxycmd.rb \
   --filter google\.com$,yahoo\.com$ \
   --no-filter_default_deny
 ```
-
-### Docker Testing
-To test the Docker image:
+### Docker Build
+- Build the image:
+```bash
+docker build -t dafal/tinyproxy .
+```
+- Smoke test the image help output:
 ```bash
 docker run --rm dafal/tinyproxy --help
 ```
-
-## Code Style Guidelines
-
-### Ruby Specific
-
-#### Indentation
-- Use 2 spaces per indentation level (not tabs)
-- Never mix tabs and spaces
-
-#### Line Length
-- Maximum 80 characters per line
-- Maximum 120 characters for long strings or URLs
-
-#### Class and Module Naming
-- Use CamelCase for classes and modules
-- Use snake_case for file names (e.g., `tinyproxy_cmd.rb` would be preferred if we had multiple files)
-
-#### Method Naming
-- Use snake_case for method names
-- Predicate methods (returning boolean) should end with `?`
-- Methods that potentially raise exceptions (e.g., modifying in-place) should end with `!`
-
-#### Variable Naming
-- Use snake_case for variables
-- Use ALL_CAPS for constants
-- Use `@instance_variable` for instance variables
-- Use `@@class_variable` for class variables
-- Use `$global` for global variables (avoid when possible)
-
-#### Comments
-- Write comments in English
-- Use complete sentences
-- Start with a capital letter and end with a period
-- Avoid redundant comments
-
-#### Strings
-- Use single quotes (`'`) for strings without interpolation
-- Use double quotes (`"`) for strings with interpolation or escaped characters
-- Avoid using `%q` or `%Q` unless necessary
-
-#### Arrays and Hashes
-- Literal arrays: `%w[foo bar baz]` for arrays of strings
-- Literal hashes: Use the Ruby 1.9+ syntax `{key: value}` when keys are symbols
-- Align multiline arrays and hashes for readability
-
-#### Control Structures
-- Use `if/unless` modifiers for simple conditions
-- Avoid `unless` with `else`
-- Use `begin/rescue/end` for exception handling
-- Avoid `for` loops; use `each` instead
-
-#### Method Definitions
-- Omit parentheses for methods with no arguments
-- Include parentheses for methods with arguments
-- Align multiline method parameters
-
-#### Blocks
-- Use `{...}` for single-line blocks
-- Use `do...end` for multi-line blocks
-- Place block parameters between `|` characters
-
-### General Guidelines
-
-#### File Organization
-- One class or module per file (when applicable)
-- Name files after the class or module they contain (in snake_case)
-- Keep files small and focused
-
-#### Error Handling
-- Rescue specific exceptions rather than using a bare `rescue`
-- Provide meaningful error messages
-- Log errors appropriately (in this project, errors go to stderr)
-- Don't suppress exceptions unless absolutely necessary
-
-#### Security
-- Validate all user inputs
-- Avoid shell injection by using proper APIs (this project uses `system()` with interpolated strings - consider using `exec` or proper argument passing)
-- Set secure defaults (this project already uses non-root user by default)
-
-#### Performance
-- Avoid unnecessary object creation in loops
-- Use immutable objects when possible
-- Consider using frozen string literals for performance
-
-#### Documentation
-- Document public APIs with YARD-style comments
-- Keep documentation updated with code changes
-- Explain why, not what
-
-#### Git Practices
-- Commit early and often
-- Write clear, descriptive commit messages
-- Keep commits focused on a single change
-- Use branches for features and fixes
-
-## Specific Notes for This Project
-
-### tinyproxycmd.rb
-- The script writes configuration files to system directories by default - consider making this more configurable for testing
-- Error handling is minimal - consider adding more robust error checking
-- The script uses `system()` to start tinyproxy - consider using `exec` or proper process management
-- Hardcoded paths (`/etc/tinyproxy/`) make testing difficult - consider dependency injection or configuration options
-
-### Dockerfile
-- Based on Alpine Linux for minimal size
-- Uses non-root user (nobody) for security
-- Entrypoint is the tinyproxycmd.rb script
-
-## Running a Single Test (When Tests Are Added)
-When automated tests are added to this project, the recommended approach would be:
-
-1. Using Minitest or RSpec (choose one and be consistent)
-2. To run a single test file:
+## Lint And Validation Commands
+- There is no committed lint configuration in this repo.
+- Recommended ad hoc lint command if RuboCop is installed locally:
 ```bash
-ruby -Ilib test/specific_test_file.rb
+rubocop tinyproxycmd.rb
 ```
-3. To run a single test method:
+- Recommended auto-fix command when appropriate:
 ```bash
-ruby -Ilib test/specific_test_file.rb -n test_method_name
+rubocop -A tinyproxycmd.rb
 ```
-
-## Future Improvements
-1. Add automated tests (unit and integration)
-2. Add a Gemfile for dependency management
-3. Add RuboCop configuration (.rubocop.yml)
-4. Add continuous integration (GitHub Actions)
-5. Improve error handling and logging
-6. Make file paths more configurable for easier testing
+- Basic syntax validation:
+```bash
+ruby -c tinyproxycmd.rb
+```
+## Test Commands
+### Current State
+- There is no automated test suite checked into this repository.
+- There are no `test/` or `spec/` directories, so there is currently no real single-test command to run.
+- Validation is manual and should focus on CLI parsing, generated config content, and container startup.
+### Recommended Manual Checks
+- Help output:
+```bash
+ruby tinyproxycmd.rb --help
+```
+- Config generation with temporary files:
+```bash
+mkdir -p /tmp/tinyproxy_test
+ruby tinyproxycmd.rb --config /tmp/tinyproxy_test/tinyproxy.conf --allow 127.0.0.1
+```
+- Auto-detect local networks path:
+```bash
+ruby tinyproxycmd.rb --config /tmp/tinyproxy_test/tinyproxy.conf --allow-local-networks
+```
+- Container smoke test:
+```bash
+docker run --rm dafal/tinyproxy --allow-local-networks --help
+```
+### If A Test Suite Is Added Later
+- Prefer Minitest for minimal overhead unless the repo already adopts something else.
+- Example single test file command:
+```bash
+ruby -I. test/test_tinyproxycmd.rb
+```
+- Example single test method command with Minitest:
+```bash
+ruby -I. test/test_tinyproxycmd.rb -n test_detect_local_network_subnets
+```
+- Example single spec file command if RSpec is introduced instead:
+```bash
+rspec spec/tinyproxycmd_spec.rb
+```
+## Coding Conventions
+### Dependencies And Imports
+- Keep the script compatible with a plain Ruby install plus stdlib.
+- Prefer stdlib solutions before adding gems.
+- Keep `require` statements at the top of the file.
+- Sort `require` statements alphabetically when adding new ones unless grouping improves clarity.
+### Formatting
+- Use 2-space indentation.
+- Avoid trailing whitespace.
+- Keep most lines near 80 characters; short overflow is fine for long strings or examples.
+- Leave one blank line between top-level method definitions.
+- Use Unix newlines.
+### Naming
+- Use `snake_case` for methods, variables, and local helpers.
+- Use `ALL_CAPS` for constants like `LOG_LEVELS`.
+- Reserve `CamelCase` for classes or modules if they are introduced.
+- Prefer explicit option names that match Tinyproxy or CLI semantics.
+### Types And Data Shapes
+- There is no static typing setup here.
+- Keep data structures simple and predictable.
+- Use arrays for ordered config entries and strings for rendered config lines.
+- Keep `OpenStruct` usage shallow; prefer a small class or hash if state grows.
+- Validate and normalize CLI inputs as early as possible.
+### Control Flow
+- Favor small helper methods for non-trivial logic such as subnet calculation or file generation.
+- Prefer guard clauses over deep nesting.
+- Keep option parsing readable; one option per `opts.on` block.
+- Separate parsing, config rendering, and process execution when refactoring.
+### Error Handling
+- Rescue the narrowest exception class you can justify.
+- Print actionable warnings or errors to stderr.
+- Do not silently ignore failures when writing files or starting `tinyproxy`.
+- If a failure should stop execution, exit non-zero or raise clearly.
+- Preserve successful behavior for valid CLI inputs.
+### Security And Process Execution
+- Treat all CLI values as untrusted input.
+- Avoid interpolated shell strings when argument-array process APIs can be used.
+- Avoid writing to privileged paths in tests when a temp path works.
+- Maintain the current non-root defaults unless the user asks otherwise.
+### File And Config Writing
+- Keep generated Tinyproxy config output deterministic.
+- Preserve option order where possible so diffs stay readable.
+- When writing multiple files, fail loudly if required output cannot be created.
+- Avoid unnecessary quoting changes in generated config lines.
+### Comments And Documentation
+- Write comments only when the intent is not obvious from code.
+- Prefer comments that explain why a choice exists, not what a line literally does.
+- Keep README examples aligned with actual CLI behavior.
+- Update help text, README, and Docker usage docs together when flags change.
+## Repository-Specific Guidance
+- `tinyproxycmd.rb` is both executable script and main logic module; changes here have immediate user-facing impact.
+- Default paths point at `/etc/tinyproxy/`; use temporary paths for local verification.
+- `Dockerfile` installs `bash`, `tinyproxy`, `curl`, and `ruby`; keep image changes minimal.
+## When Making Changes
+- Run `ruby -c tinyproxycmd.rb` after editing Ruby code.
+- Run at least one manual CLI smoke test when behavior changes.
+- If Docker behavior changes, run `docker build -t dafal/tinyproxy .` and a simple `docker run` check.
+- Mention clearly in your final response if something could not be verified locally.

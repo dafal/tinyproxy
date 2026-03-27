@@ -53,6 +53,7 @@ options.timeout = 600
 options.port = 8888
 options.loglevel = 'Info'
 options.allow = %w[127.0.0.1 ::1]
+options.filter = []
 options.allow_local_networks = false
 
 # Configuring options
@@ -91,8 +92,10 @@ OptionParser.new do |opts|
     options.allow = allow
   end
 
-  opts.on('--filter FILTER1,FILTER2,...', Array, 'Filters (default: none') do |filter|
-    options.filter = filter
+  opts.on('--filter FILTER1,FILTER2,...', Array,
+          'Filters, comma-separated or repeatable (default: none)') do |filter|
+    options.filter.concat(filter)
+    options.filter.uniq!
   end
   opts.on('--[no-]filter_default_deny', 'FilterDefaultDeny Yes') do |filter_default_deny|
     options.filter_default_deny = filter_default_deny
@@ -140,7 +143,7 @@ File.open("#{options.config}", 'w') do |config|
     config.write "FilterDefaultDeny No\n"
   end
 
-  if options.filter
+  if options.filter.any?
     config.write "Filter \"#{options.config_filter}\"\n"
     File.open("#{options.config_filter}", 'w') do |config_filter|
       options.filter.each do |filter|

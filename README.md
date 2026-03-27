@@ -38,6 +38,83 @@ With automatic network detection:
     restart: unless-stopped
 ```
 
+### Compose outbound internet access control
+
+This image is especially useful in Docker Compose projects where application
+containers should not have direct outbound internet access.
+
+The usual pattern is:
+
+- connect the application container only to internal networks
+- connect the Tinyproxy container to the internal network and a network with
+  outbound access
+- configure the application to use the proxy with `HTTP_PROXY` and
+  `HTTPS_PROXY`
+
+Example:
+
+```yaml
+services:
+  app:
+    image: my-app
+    networks:
+      - app_net
+    environment:
+      HTTP_PROXY: http://proxy:8888
+      HTTPS_PROXY: http://proxy:8888
+      NO_PROXY: proxy,localhost,127.0.0.1
+
+  proxy:
+    image: dafal/tinyproxy
+    command:
+      - --allow-local-networks
+      - --filter_default_deny
+      - --filter
+      - github\.com$
+      - --filter
+      - rubygems\.org$
+      - --filter
+      - deb\.debian\.org$
+    networks:
+      - app_net
+      - default
+    restart: unless-stopped
+
+networks:
+  app_net:
+    internal: true
+```
+
+In that setup, `app` cannot reach the internet directly because it is attached
+only to the internal network. Internet-bound traffic must go through the
+`proxy` service, and Tinyproxy then limits which domains can be reached.
+
+### Managing allowed domains
+
+For short lists, the original comma-separated form still works:
+
+```yaml
+command: --allow-local-networks --filter_default_deny --filter github\.com$,rubygems\.org$
+```
+
+For longer lists, `--filter` can now be repeated and remains easier to edit in
+Compose files:
+
+```yaml
+command:
+  - --allow-local-networks
+  - --filter_default_deny
+  - --filter
+  - github\.com$
+  - --filter
+  - rubygems\.org$
+  - --filter
+  - pypi\.org$
+```
+
+Both styles can be mixed, and each filter is written as a separate line in the
+generated Tinyproxy filter file.
+
 ## Supported options
 
 ```
@@ -52,7 +129,7 @@ Usage: tinyproxycmd.rb [options]
         --loglevel LOG_LEVEL         Select log level (default: Info)
                                       (["Critical", "Error", "Warning", "Notice", "Connect", "Info"])
         --allow IP1,IP2,HOST1,...    Allow statements (default: '127.0.0.1,::1)'
-        --filter FILTER1,FILTER2,... Filters (default: none
+        --filter FILTER1,FILTER2,... Filters, comma-separated or repeatable (default: none)
         --[no-]filter_default_deny   FilterDefaultDeny Yes
         --allow-local-networks       Automatically allow all local networks attached to the container
 $
