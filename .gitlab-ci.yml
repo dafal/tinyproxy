@@ -34,13 +34,13 @@ clone-source:
     - git clone "$GITHUB_REPO" repo
     - CURRENT_SHA=$(git -C repo rev-parse HEAD)
     - echo "GitHub HEAD is $CURRENT_SHA"
+    - git -C repo rev-parse HEAD > repo/.git-sha
+    - git -C repo rev-parse --short HEAD > repo/.git-short-sha
     - |
       if [ -n "$LAST_BUILT_SHA" ] && [ "$LAST_BUILT_SHA" = "$CURRENT_SHA" ]; then
         echo "No new commits since last build ($LAST_BUILT_SHA). Skipping."
-        exit 0
+        touch repo/.skip-build
       fi
-    - git -C repo rev-parse HEAD > repo/.git-sha
-    - git -C repo rev-parse --short HEAD > repo/.git-short-sha
   artifacts:
     paths:
       - repo/
@@ -61,6 +61,11 @@ build-and-push:
       {"auths":{"https://index.docker.io/v1/":{"username":"$DOCKER_HUB_USER","password":"$DOCKER_HUB_TOKEN"}}}
       EOF
   script:
+    - |
+      if [ -f repo/.skip-build ]; then
+        echo "No new commits since last build. Skipping."
+        exit 0
+      fi
     - SHORT_SHA=$(cat repo/.git-short-sha)
     - echo "Building $IMAGE_NAME:$SHORT_SHA ..."
     - |
